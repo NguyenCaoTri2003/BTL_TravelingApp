@@ -1,18 +1,10 @@
-import React, { useState } from 'react';
-import { Text, View, StyleSheet, TextInput, TouchableOpacity, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { Text, View, StyleSheet, TextInput, TouchableOpacity, Modal, Alert } from 'react-native';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Icons from 'react-native-vector-icons/Ionicons';
 import CountryPicker from 'react-native-country-picker-modal';
 
-const DEFAULT_OTP = '1111'; // Mã OTP mặc định
-
-const API_LOGIN = 'https://6722030b2108960b9cc28724.mockapi.io/loginApp';
-
-// Danh sách tài khoản mẫu
-const defaultUserList = [
-  { phoneNumber: '0123', password: '123' },
-  { phoneNumber: '849876543210', password: 'mypassword' },
-];
+const API_URL = 'https://6722030b2108960b9cc28724.mockapi.io/loginApp'; // URL API của bạn
 
 export default function ScreenSignUp({ navigation }) {
   const [countryCode, setCountryCode] = useState('VN');
@@ -26,7 +18,7 @@ export default function ScreenSignUp({ navigation }) {
   const [isVerification, setIsVerification] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const [userList, setUserList] = useState([...defaultUserList]); // Kết hợp với danh sách tài khoản mẫu
+  const DEFAULT_OTP = '1111'; // Mã OTP mặc định
 
   const onSelect = (selectedCountry) => {
     setCountryCode(selectedCountry.cca2);
@@ -35,45 +27,76 @@ export default function ScreenSignUp({ navigation }) {
     setPlaceholder(`+${selectedCountry.callingCode[0]} Mobile Number`);
   };
 
-  const handleContinue = () => {
-    // Kiểm tra nếu số điện thoại đã tồn tại trong danh sách userList
-    const userExists = userList.find(user => user.phoneNumber === phoneNumber);
-    if (userExists) {
-      setErrorMessage('This phone number already has an account.');
-    } else {
-      // Hiển thị modal để nhập mật khẩu và mã OTP
-      setErrorMessage('');
-      setIsVerification(true);
-      setModalVisible(true);
+  const handleContinue = async () => {
+    // Kiểm tra số điện thoại tồn tại trong API
+    try {
+      const response = await fetch(API_URL);
+      const users = await response.json();
+      const userExists = users.find(user => user.phoneNumber === phoneNumber);
+
+      if (userExists) {
+        setErrorMessage('This phone number already has an account.');
+      } else {
+        setErrorMessage('');
+        setIsVerification(true);
+        setModalVisible(true);
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
     }
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (verificationCode === DEFAULT_OTP) {
-      // Lưu tài khoản mới vào mảng userList
-      setUserList([...userList, { phoneNumber, password }]);
-      setModalVisible(false);
-      setPhoneNumber('');
-      setPassword('');
-      setVerificationCode('');
-      setIsVerification(false);
+      // Lưu tài khoản mới vào API
+      const newUser = { phoneNumber, password };
+
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(newUser),
+        });
+
+        if (response.ok) {
+          Alert.alert('Registration Successful!', 'You can now log in.');
+          setModalVisible(false);
+          setPhoneNumber('');
+          setPassword('');
+          setVerificationCode('');
+          setIsVerification(false);
+        } else {
+          Alert.alert('Registration Failed', 'Please try again.');
+        }
+      } catch (error) {
+        console.error('Error registering user:', error);
+      }
     } else {
-      alert('Invalid verification code.');
+      Alert.alert('Invalid verification code.');
     }
   };
 
-  const handleLogin = () => {
-    // Kiểm tra đăng nhập với userList (bao gồm tài khoản mẫu)
-    const user = userList.find(
-      user => user.phoneNumber === phoneNumber && user.password === password
-    );
-    if (user) {
-      navigation.navigate('ScreenHome');
-      setModalVisible(false)
-    } else {
-      setErrorMessage('Invalid phone number or password. Please create a new account.');
-      setIsVerification(false);
-      setModalVisible(true); // Hiển thị modal để tạo tài khoản mới nếu đăng nhập thất bại
+  const handleLogin = async () => {
+    // Kiểm tra đăng nhập với API
+    try {
+      const response = await fetch(API_URL);
+      const users = await response.json();
+      const user = users.find(
+        user => user.phoneNumber === phoneNumber && user.password === password
+      );
+
+      if (user) {
+        navigation.navigate('ScreenHome');
+        setModalVisible(false);
+      } else {
+        setErrorMessage('Invalid phone number or password. Please create a new account.');
+        setIsVerification(false);
+        setModalVisible(true); // Hiển thị modal để tạo tài khoản mới nếu đăng nhập thất bại
+      }
+    } catch (error) {
+      console.error('Error logging in:', error);
     }
   };
 
@@ -84,8 +107,7 @@ export default function ScreenSignUp({ navigation }) {
         <View style={styles.boxEnterNumber}>
           <Text style={styles.textEnterNumber}>Enter your mobile number:</Text>
           <View style={styles.boxInputSDT}>
-            <View style={styles.boxNation}>
-              <CountryPicker
+            <CountryPicker
               countryCode={countryCode}
               withFilter
               withFlag
@@ -95,7 +117,6 @@ export default function ScreenSignUp({ navigation }) {
               withAlphaFilter
               containerButtonStyle={styles.seclectNation}
             />
-            </View>
             <TextInput
               style={styles.inputSDT}
               placeholder={placeholder}
@@ -153,6 +174,7 @@ export default function ScreenSignUp({ navigation }) {
                 <TextInput
                   style={styles.modalInput}
                   placeholder="Password"
+                  placeholderTextColor="#A9A9A9"
                   secureTextEntry
                   onChangeText={setPassword}
                   value={password}
@@ -160,6 +182,7 @@ export default function ScreenSignUp({ navigation }) {
                 <TextInput
                   style={styles.modalInput}
                   placeholder="Verification Code"
+                  placeholderTextColor="#A9A9A9"
                   onChangeText={setVerificationCode}
                   value={verificationCode}
                 />
@@ -173,6 +196,7 @@ export default function ScreenSignUp({ navigation }) {
                 <TextInput
                   style={styles.modalInput}
                   placeholder="Phone Number"
+                  placeholderTextColor="#A9A9A9"
                   keyboardType="phone-pad"
                   onChangeText={setPhoneNumber}
                   value={phoneNumber}
@@ -180,6 +204,7 @@ export default function ScreenSignUp({ navigation }) {
                 <TextInput
                   style={styles.modalInput}
                   placeholder="Password"
+                  placeholderTextColor="#A9A9A9"
                   secureTextEntry
                   onChangeText={setPassword}
                   value={password}
